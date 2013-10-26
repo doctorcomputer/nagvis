@@ -139,18 +139,17 @@ class GlobalBackendOpenNMS {
 			}
 			//get nodeID
 			$objectId = substr($objectName, strpos($objectName, "@") + 1 );
-			//get all current outages of the node
-			$dbResult = pg_query($dbConnection, "SELECT count(*) FROM outages WHERE nodeid=$objectId AND ifregainedservice is null");
+			//check, if node is in OpenNMS
+			$dbResult = pg_query($dbConnection, "SELECT count(*) FROM node WHERE nodeid=$objectId");
 			if($dbResult != FALSE)
 			{
 				$dbResultRow = pg_fetch_array($dbResult);
-				//if there is an outage
-				if($dbResultRow[0] > 0)
+				if($dbResultRow[0] == 0)
 				{
-					//return down
+					//return unknown
 					$output[$objectName] = Array(	'alias' => $objectName, 
-									'state' => "DOWN",
-									'output' => "Some or all services on this host are down",
+									'state' => "UNKNOWN",
+									'output' => "Object not found in OpenNMS",
 									'display_name' => $objectName,
 									'address' => $objectName,
 									'notes' => "",
@@ -164,30 +163,63 @@ class GlobalBackendOpenNMS {
 									'perfdata' => "",
 									'problem_has_been_acknowledged' => 0,
 									'in_downtime' => 0);
+
 				}
-				//if there is no outage
 				else
 				{
-					//return UP
-					$output[$objectName] = Array(	'alias' => $objectName, 
-									'state' => "UP",
-									'output' => "All services of this host are up",
-									'display_name' => $objectName,
-									'address' => $objectName,
-									'notes' => "",
-									'last_check' => 0,
-									'next_check' => 0,
-									'current_check_attempt' => 1,
-									'max_check_attempts' => 1,
-									'last_state_change' => 0,
-									'last_hard_state_change' => 0,
-									'statusmap_image' => "",
-									'perfdata' => "",
-									'problem_has_been_acknowledged' => 0,
-									'in_downtime' => 0);
-	
+					//get all current outages of the node
+					$dbResult = pg_query($dbConnection, "SELECT count(*) FROM outages WHERE nodeid=$objectId AND ifregainedservice is null");
+					if($dbResult != FALSE)
+					{
+						$dbResultRow = pg_fetch_array($dbResult);
+						//if there is an outage
+						if($dbResultRow[0] > 0)
+						{
+							//return down
+							$output[$objectName] = Array(	'alias' => $objectName, 
+											'state' => "DOWN",
+											'output' => "Some or all services on this host are down",
+											'display_name' => $objectName,
+											'address' => $objectName,
+											'notes' => "",
+											'last_check' => 0,
+											'next_check' => 0,
+											'current_check_attempt' => 1,
+											'max_check_attempts' => 1,
+											'last_state_change' => 0,
+											'last_hard_state_change' => 0,
+											'statusmap_image' => "",
+											'perfdata' => "",
+											'problem_has_been_acknowledged' => 0,
+											'in_downtime' => 0);
+						}
+						//if there is no outage
+						else
+						{
+							//return UP
+							$output[$objectName] = Array(	'alias' => $objectName, 
+											'state' => "UP",
+											'output' => "All services of this host are up",
+											'display_name' => $objectName,
+											'address' => $objectName,
+											'notes' => "",
+											'last_check' => 0,
+											'next_check' => 0,
+											'current_check_attempt' => 1,
+											'max_check_attempts' => 1,
+											'last_state_change' => 0,
+											'last_hard_state_change' => 0,
+											'statusmap_image' => "",
+											'perfdata' => "",
+											'problem_has_been_acknowledged' => 0,
+											'in_downtime' => 0);
+			
+						}
+					}
+
 				}
 			}
+
 		}
 	}
 	return $output;
@@ -215,20 +247,19 @@ class GlobalBackendOpenNMS {
 			$objectServiceName = substr($objectService, 0, strpos($objectService, "@"));
 			//get service IP
 			$objectServiceIP = substr($objectService, strpos($objectService, "@") + 1 );
-			//get all current outages of this service
-			$dbResult = pg_query($dbConnection, "SELECT count(*) FROM outages,service WHERE outages.serviceid = service.serviceid AND nodeid=$objectId AND ipaddr='$objectServiceIP' AND servicename='$objectServiceName' AND ifregainedservice is null");
+			//check if the node and service is in OpenNMS
+			$dbResult = pg_query($dbConnection, "SELECT count(*) FROM ifservices, service WHERE ifservices.serviceid = service.serviceid AND nodeid=$objectId AND ipaddr='$objectServiceIP' AND servicename='$objectServiceName'");
 			if($dbResult != FALSE)
 			{
 				$dbResultRow = pg_fetch_array($dbResult);
-				//if there are outages for this service
-				if($dbResultRow[0] > 0)
+				if($dbResultRow[0] == 0)
 				{
-					//return service DOWN
+					//return service UNKNOWN
 					$output[$objectName.'~~'.$objectService] =  Array(	'name' => $objectServiceName,
 												'service_description' => $objectService,
 												'alias' => $objectServiceName, 
-												'state' => "DOWN",
-												'output' => "Service is down",
+												'state' => "UNKNOWN",
+												'output' => "Service not found in OpenNMS",
 												'display_name' => $objectServiceName,
 												'address' => $objectServiceName,
 												'notes' => "",
@@ -246,28 +277,64 @@ class GlobalBackendOpenNMS {
 				}
 				else
 				{
-					//return service UP
-					$output[$objectName.'~~'.$objectService] =  Array(	'name' => $objectServiceName,
-												'service_description' => $objectService,
-												'alias' => $objectServiceName, 
-												'state' => "UP",
-												'output' => "Service is up",
-												'display_name' => $objectServiceName,
-												'address' => $objectServiceName,
-												'notes' => "",
-												'last_check' => 0,
-												'next_check' => 0,
-												'current_check_attempt' => 1,
-												'max_check_attempts' => 1,
-												'last_state_change' => 0,
-												'last_hard_state_change' => 0,
-												'statusmap_image' => "",
-												'perfdata' => "",
-												'problem_has_been_acknowledged' => 0,
-												'in_downtime' => 0);
-				}
+					//get all current outages of this service
+					$dbResult = pg_query($dbConnection, "SELECT count(*) FROM outages,service WHERE outages.serviceid = service.serviceid AND nodeid=$objectId AND ipaddr='$objectServiceIP' AND servicename='$objectServiceName' AND ifregainedservice is null");
+					if($dbResult != FALSE)
+					{
+						$dbResultRow = pg_fetch_array($dbResult);
+						//if there are outages for this service
+						if($dbResultRow[0] > 0)
+						{
+							//return service DOWN
+							$output[$objectName.'~~'.$objectService] =  Array(	'name' => $objectServiceName,
+														'service_description' => $objectService,
+														'alias' => $objectServiceName, 
+														'state' => "DOWN",
+														'output' => "Service is down",
+														'display_name' => $objectServiceName,
+														'address' => $objectServiceName,
+														'notes' => "",
+														'last_check' => 0,
+														'next_check' => 0,
+														'current_check_attempt' => 1,
+														'max_check_attempts' => 1,
+														'last_state_change' => 0,
+														'last_hard_state_change' => 0,
+														'statusmap_image' => "",
+														'perfdata' => "",
+														'problem_has_been_acknowledged' => 0,
+														'in_downtime' => 0);
+		
+						}
+						else
+						{
+							//return service UP
+							$output[$objectName.'~~'.$objectService] =  Array(	'name' => $objectServiceName,
+														'service_description' => $objectService,
+														'alias' => $objectServiceName, 
+														'state' => "UP",
+														'output' => "Service is up",
+														'display_name' => $objectServiceName,
+														'address' => $objectServiceName,
+														'notes' => "",
+														'last_check' => 0,
+														'next_check' => 0,
+														'current_check_attempt' => 1,
+														'max_check_attempts' => 1,
+														'last_state_change' => 0,
+														'last_hard_state_change' => 0,
+														'statusmap_image' => "",
+														'perfdata' => "",
+														'problem_has_been_acknowledged' => 0,
+														'in_downtime' => 0);
+						}		
 
-			}		
+					}		
+
+				}
+				
+			}
+
 		}
 	}
 	return $output;
